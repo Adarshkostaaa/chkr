@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CC Validator Terminal - @config_masterr</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="matrix-bg"></div>
+    
+    <div class="main-container">
+        <!-- Header -->
+        <header class="cyber-header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">⚡</div>
+                    <div class="logo-text">
+                        <h1>CC VALIDATOR</h1>
+                        <span>@config_masterr</span>
+                    </div>
+                </div>
+                
+                <div class="header-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">STATUS</span>
+                        <span class="stat-value online">ONLINE</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">GATEWAY</span>
+                        <span class="stat-value">Stripe + Shopify</span>
+                    </div>
+                </div>
+                
+                <div class="logout-section">
+                    <form action="/logout" method="post" style="display: inline;">
+                        <button type="submit" class="logout-btn">
+                            <span>LOGOUT</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="content-grid">
+                <!-- Input Section -->
+                <div class="input-section">
+                    <div class="section-header">
+                        <h2>CARD INPUT TERMINAL</h2>
+                        <div class="section-subtitle">Enter credit card details for validation (unlimited cards supported)</div>
+                    </div>
+                    
+                    <form id="ccForm">
+                        <div class="input-group">
+                            <label for="cc_input">CREDIT CARD DATA</label>
+                            <textarea 
+                                id="cc_input" 
+                                name="cc_input" 
+                                rows="12" 
+                                placeholder="Enter CC details (format: number|month|year|cvv)&#10;Example: 4532123456789012|12|2025|123&#10;&#10;Unlimited cards supported..."
+                                required
+                            ></textarea>
+                            <div class="input-info">
+                                <span class="info-text">Format: CARD|MM|YYYY|CVV (one per line)</span>
+                                <span class="card-count">Cards: <span id="cardCount">0</span></span>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="cyber-button primary" id="checkBtn">
+                            <span>START VALIDATION</span>
+                            <div class="button-glow"></div>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Results Section -->
+                <div class="results-section">
+                    <div class="section-header">
+                        <h2>VALIDATION RESULTS</h2>
+                        <div class="section-subtitle">Real-time card validation status</div>
+                    </div>
+                    
+                    <!-- Statistics -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon approved">✓</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="approvedCount">0</div>
+                                <div class="stat-label">APPROVED</div>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon declined">✗</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="declinedCount">0</div>
+                                <div class="stat-label">DECLINED</div>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon processing">⟳</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="processingCount">0</div>
+                                <div class="stat-label">PROCESSING</div>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon total">Σ</div>
+                            <div class="stat-info">
+                                <div class="stat-number" id="totalCount">0</div>
+                                <div class="stat-label">TOTAL</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Results Display -->
+                    <div class="results-display">
+                        <div class="results-header">
+                            <h3>LIVE RESULTS</h3>
+                            <button id="clearResults" class="clear-btn">CLEAR</button>
+                        </div>
+                        <div class="results-content" id="resultsContent">
+                            <div class="no-results">
+                                <div class="no-results-icon">📊</div>
+                                <div class="no-results-text">No validation results yet</div>
+                                <div class="no-results-subtitle">Submit cards to see results here</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let approvedCount = 0;
+        let declinedCount = 0;
+        let processingCount = 0;
+        let totalCount = 0;
+
+        // Card counter
+        document.getElementById('cc_input').addEventListener('input', function() {
+            const lines = this.value.split('\n').filter(line => line.trim() !== '');
+            document.getElementById('cardCount').textContent = lines.length;
+        });
+
+        // Form submission
+        document.getElementById('ccForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const button = document.getElementById('checkBtn');
+            const originalText = button.innerHTML;
+            
+            // Reset counters
+            approvedCount = 0;
+            declinedCount = 0;
+            processingCount = 0;
+            totalCount = 0;
+            updateStats();
+            
+            // Clear previous results
+            document.getElementById('resultsContent').innerHTML = '';
+            
+            button.innerHTML = '<span>PROCESSING...</span><div class="button-glow"></div>';
+            button.disabled = true;
+            
+            try {
+                const response = await fetch('/check-cards', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value);
+                    processChunk(chunk);
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                addResult('ERROR', 'Connection failed', 'error');
+            } finally {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        });
+
+        function processChunk(chunk) {
+            // Look for card results in the chunk
+            const lines = chunk.split('\n');
+            
+            lines.forEach(line => {
+                if (line.includes('𝘾𝘼𝙍𝘿 ↯')) {
+                    parseCardResult(chunk);
+                }
+            });
+        }
+
+        function parseCardResult(resultText) {
+            const cardMatch = resultText.match(/𝘾𝘼𝙍𝘿 ↯ (.+)/);
+            const responseMatch = resultText.match(/𝙍𝙀𝙎𝙋𝙊𝙉𝙎𝙀 ↯ (.+)/);
+            const timeMatch = resultText.match(/𝙏𝙄𝙈𝙀 ↯ (.+)/);
+            
+            if (cardMatch && responseMatch) {
+                const card = cardMatch[1];
+                const response = responseMatch[1];
+                const time = timeMatch ? timeMatch[1] : new Date().toLocaleString();
+                
+                let status = 'declined';
+                if (response.includes('Thank you for your purchase') || 
+                    response.includes('Order Placed') || 
+                    response.includes('19$')) {
+                    status = 'approved';
+                    approvedCount++;
+                } else {
+                    declinedCount++;
+                }
+                
+                totalCount++;
+                updateStats();
+                addResult(card, response, status, time);
+            }
+        }
+
+        function addResult(card, response, status, time = null) {
+            const resultsContent = document.getElementById('resultsContent');
+            
+            // Remove no-results message if it exists
+            const noResults = resultsContent.querySelector('.no-results');
+            if (noResults) {
+                noResults.remove();
+            }
+            
+            const resultItem = document.createElement('div');
+            resultItem.className = `result-item ${status}`;
+            
+            const statusIcon = status === 'approved' ? '✓' : status === 'error' ? '⚠' : '✗';
+            const statusText = status === 'approved' ? 'APPROVED' : status === 'error' ? 'ERROR' : 'DECLINED';
+            
+            resultItem.innerHTML = `
+                <div class="result-header">
+                    <div class="result-status">
+                        <span class="status-icon">${statusIcon}</span>
+                        <span class="status-text">${statusText}</span>
+                    </div>
+                    <div class="result-time">${time || new Date().toLocaleString()}</div>
+                </div>
+                <div class="result-card">${card}</div>
+                <div class="result-response">${response}</div>
+            `;
+            
+            resultsContent.insertBefore(resultItem, resultsContent.firstChild);
+            
+            // Animate in
+            setTimeout(() => {
+                resultItem.classList.add('animate-in');
+            }, 10);
+        }
+
+        function updateStats() {
+            document.getElementById('approvedCount').textContent = approvedCount;
+            document.getElementById('declinedCount').textContent = declinedCount;
+            document.getElementById('processingCount').textContent = processingCount;
+            document.getElementById('totalCount').textContent = totalCount;
+        }
+
+        // Clear results
+        document.getElementById('clearResults').addEventListener('click', function() {
+            document.getElementById('resultsContent').innerHTML = `
+                <div class="no-results">
+                    <div class="no-results-icon">📊</div>
+                    <div class="no-results-text">No validation results yet</div>
+                    <div class="no-results-subtitle">Submit cards to see results here</div>
+                </div>
+            `;
+            
+            approvedCount = 0;
+            declinedCount = 0;
+            processingCount = 0;
+            totalCount = 0;
+            updateStats();
+        });
+
+        // Matrix background effect
+        function createMatrixRain() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            document.querySelector('.matrix-bg').appendChild(canvas);
+            
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+            const charArray = chars.split('');
+            const fontSize = 12;
+            const columns = canvas.width / fontSize;
+            const drops = [];
+            
+            for (let i = 0; i < columns; i++) {
+                drops[i] = 1;
+            }
+            
+            function draw() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.03)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#00ff41';
+                ctx.font = fontSize + 'px monospace';
+                
+                for (let i = 0; i < drops.length; i++) {
+                    const text = charArray[Math.floor(Math.random() * charArray.length)];
+                    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                    
+                    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                        drops[i] = 0;
+                    }
+                    drops[i]++;
+                }
+            }
+            
+            setInterval(draw, 50);
+        }
+        
+        createMatrixRain();
+
+        // Resize canvas on window resize
+        window.addEventListener('resize', function() {
+            const canvas = document.querySelector('.matrix-bg canvas');
+            if (canvas) {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+        });
+    </script>
+</body>
+</html>

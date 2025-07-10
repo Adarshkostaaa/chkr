@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Terminal - @config_masterr</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="login-body">
+    <div class="matrix-bg"></div>
+    <div class="login-container">
+        <div class="terminal-header">
+            <div class="terminal-controls">
+                <span class="control red"></span>
+                <span class="control yellow"></span>
+                <span class="control green"></span>
+            </div>
+            <div class="terminal-title">SECURE ACCESS TERMINAL</div>
+        </div>
+        
+        <div class="login-content">
+            <div class="logo-section">
+                <div class="cyber-logo">
+                    <div class="logo-text">CC VALIDATOR</div>
+                    <div class="logo-subtitle">@config_masterr</div>
+                </div>
+            </div>
+            
+            <div class="access-form">
+                <div class="form-header">
+                    <h2>AUTHENTICATION REQUIRED</h2>
+                    <div class="typing-text">Enter access credentials...</div>
+                </div>
+                
+                <form id="loginForm" method="post">
+                    <div class="input-group">
+                        <label for="password">ACCESS CODE</label>
+                        <input type="password" id="password" name="password" placeholder="Enter password" required>
+                        <div class="input-line"></div>
+                    </div>
+                    
+                    <button type="submit" class="cyber-button">
+                        <span>AUTHENTICATE</span>
+                        <div class="button-glow"></div>
+                    </button>
+                </form>
+                
+                <div class="security-notice">
+                    <div class="notice-icon">🔒</div>
+                    <div class="notice-text">Unauthorized access is prohibited</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const button = this.querySelector('button');
+            const originalText = button.innerHTML;
+            
+            button.innerHTML = '<span>AUTHENTICATING...</span><div class="button-glow"></div>';
+            button.disabled = true;
+            
+            try {
+                const response = await fetch('index.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.text();
+                
+                if (result.includes('error')) {
+                    const error = JSON.parse(result);
+                    alert('❌ ' + error.error);
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                } else {
+                    window.location.reload();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        });
+
+        // Matrix rain effect
+        function createMatrixRain() {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            document.querySelector('.matrix-bg').appendChild(canvas);
+            
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+            const charArray = chars.split('');
+            const fontSize = 14;
+            const columns = canvas.width / fontSize;
+            const drops = [];
+            
+            for (let i = 0; i < columns; i++) {
+                drops[i] = 1;
+            }
+            
+            function draw() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#00ff41';
+                ctx.font = fontSize + 'px monospace';
+                
+                for (let i = 0; i < drops.length; i++) {
+                    const text = charArray[Math.floor(Math.random() * charArray.length)];
+                    ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                    
+                    if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) {
+                        drops[i] = 0;
+                    }
+                    drops[i]++;
+                }
+            }
+            
+            setInterval(draw, 35);
+        }
+        
+        createMatrixRain();
+    </script>
+</body>
+</html>
