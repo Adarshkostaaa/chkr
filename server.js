@@ -1,6 +1,12 @@
-const express = require('express');
-const session = require('express-session');
-const path = require('path');
+import express from 'express';
+import session from 'express-session';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
 const app = express();
 
 // Middleware
@@ -94,7 +100,7 @@ const parseProxies = () => {
 // Credit card checking endpoint
 app.post('/check-cards', requireAuth, async (req, res) => {
     const { cc_input } = req.body;
-    
+
     if (!cc_input) {
         return res.json({
             error: true,
@@ -104,7 +110,7 @@ app.post('/check-cards', requireAuth, async (req, res) => {
     }
 
     const ccLines = cc_input.split('\n').filter(line => line.trim() !== '');
-    
+
     if (ccLines.length === 0) {
         return res.json({
             error: true,
@@ -113,7 +119,6 @@ app.post('/check-cards', requireAuth, async (req, res) => {
         });
     }
 
-    // Set response headers for streaming
     res.writeHead(200, {
         'Content-Type': 'text/plain; charset=utf-8',
         'Transfer-Encoding': 'chunked',
@@ -126,30 +131,25 @@ app.post('/check-cards', requireAuth, async (req, res) => {
 
     for (const ccLine of ccLines) {
         const cc1 = ccLine.trim();
-        
         if (!cc1) continue;
 
         const ccParts = cc1.split('|');
         if (ccParts.length < 4) continue;
 
         const [cc, month, year, cvv] = ccParts;
-        
-        // Format year
+
         let formattedYear = year;
         if (year.length <= 2) {
             formattedYear = `20${year}`;
         }
-        
-        // Format month
+
         let subMonth = month.replace(/^0+/, '') || month;
 
         let err = '';
-        
+
         try {
-            // Simulate the checking process
             await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
-            
-            // Simulate different responses
+
             const random = Math.random();
             if (random < 0.05) {
                 err = 'Thank you for your purchase! -> 19$';
@@ -175,7 +175,6 @@ app.post('/check-cards', requireAuth, async (req, res) => {
             err = error.message || 'Unknown error occurred';
         }
 
-        // Format response message
         const fullMsg = `𝘾𝘼𝙍𝘿 ↯ ${cc}|${subMonth}|${formattedYear}|${cvv}\n` +
                        `𝙂𝘼𝙏𝙀𝙒𝘼𝙔 ↯ Stripe + Shopify 19$\n` +
                        `𝙍𝙀𝙎𝙋𝙊𝙉𝙎𝙀 ↯ ${err}\n` +
@@ -183,10 +182,8 @@ app.post('/check-cards', requireAuth, async (req, res) => {
                        `𝙊𝙬𝙣𝙚𝙧 ↯ @config_masterr\n` +
                        `└─────────────────────┘\n\n`;
 
-        // Send the result
         res.write(fullMsg);
-        
-        // Small delay between cards
+
         await new Promise(resolve => setTimeout(resolve, 500));
     }
 
