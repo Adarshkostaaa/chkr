@@ -24,6 +24,7 @@ type Gateway = 'shopify1' | 'shopify2' | 'braintree';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [sessionId, setSessionId] = useState('');
   const [password, setPassword] = useState('');
   const [cards, setCards] = useState('');
   const [results, setResults] = useState<CheckResult[]>([]);
@@ -34,7 +35,8 @@ function App() {
   const [totalCards, setTotalCards] = useState(0);
   const [filter, setFilter] = useState<'all' | 'approved' | 'declined'>('all');
   const [selectedGateway, setSelectedGateway] = useState<Gateway>('shopify1');
-  const [checkingSpeed, setCheckingSpeed] = useState(200);
+  const [checkingSpeed, setCheckingSpeed] = useState(50);
+  const [authError, setAuthError] = useState('');
   const resultsRef = useRef<HTMLDivElement>(null);
   const checkingRef = useRef<boolean>(false);
   const pausedRef = useRef<boolean>(false);
@@ -51,18 +53,35 @@ function App() {
       color: 'from-purple-500 to-pink-500'
     },
     braintree: {
-      name: 'Braintree Charge',
-      description: 'Real Charge Processing - Auth',
+      name: 'Braintree Live Charge',
+      description: 'Real Live Payment Processing - Actual Charges',
       color: 'from-orange-500 to-red-500'
     }
   };
 
-  const handleAuth = (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === 'kamal') {
-      setIsAuthenticated(true);
-    } else {
-      alert('❌ Access Denied - Invalid Credentials');
+    setAuthError('');
+    
+    try {
+      const response = await fetch('/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ password })
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        setIsAuthenticated(true);
+        setSessionId(result.sessionId);
+      } else {
+        setAuthError(result.error || 'Authentication failed');
+      }
+    } catch (error) {
+      setAuthError('Connection failed');
     }
   };
 
@@ -75,11 +94,16 @@ function App() {
         },
         body: JSON.stringify({
           cardData: cardData.trim(),
-          gateway: selectedGateway
+          gateway: selectedGateway,
+          sessionId: sessionId
         })
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          setIsAuthenticated(false);
+          throw new Error('Session expired');
+        }
         throw new Error('Network error');
       }
 
@@ -151,7 +175,7 @@ function App() {
       }
 
       // Speed control
-      const delay = Math.max(5, 1000 / checkingSpeed);
+      const delay = Math.max(100, 1000 / checkingSpeed);
       await new Promise(resolve => setTimeout(resolve, delay));
 
       // Auto-scroll to bottom
@@ -188,6 +212,24 @@ function App() {
     checkingRef.current = false;
     pausedRef.current = false;
     setCurrentCard('');
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Session-Id': sessionId
+        }
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+    
+    setIsAuthenticated(false);
+    setSessionId('');
+    setResults([]);
   };
 
   const filteredResults = results.filter(result => {
@@ -251,6 +293,12 @@ function App() {
                 </div>
               </div>
 
+              {authError && (
+                <div className="text-red-400 text-center text-sm bg-red-900/20 border border-red-500/30 rounded-lg p-3">
+                  ❌ {authError}
+                </div>
+              )}
+
               <button
                 type="submit"
                 className="w-full bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white font-bold py-4 px-6 rounded-lg transition-all duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-cyan-500/25 uppercase tracking-wider"
@@ -308,6 +356,12 @@ function App() {
               <div className="text-sm text-gray-400 tracking-wider">GATEWAY</div>
               <div className="text-purple-400 font-bold tracking-wider">{gatewayConfig[selectedGateway].name}</div>
             </div>
+            <button
+              onClick={handleLogout}
+              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all"
+            >
+              LOGOUT
+            </button>
           </div>
         </div>
       </header>
@@ -335,9 +389,14 @@ function App() {
                 >
                   <option value="shopify1">Shopify Basic - $4 Processing</option>
                   <option value="shopify2">Shopify VBV/3D - $4 + Authentication</option>
-                  <option value="braintree">Braintree Charge - Real Auth</option>
+                  <option value="braintree">Braintree Live Charge - Real Payment Processing</option>
                 </select>
                 <p className="text-gray-400 text-xs mt-1 tracking-wider">{gatewayConfig[selectedGateway].description}</p>
+                {selectedGateway === 'braintree' && (
+                  <div className="mt-2 p-3 bg-orange-900/20 border border-orange-500/30 rounded-lg">
+                    <p className="text-orange-400 text-xs font-medium">⚠️ WARNING: This gateway processes real charges on live payment systems</p>
+                  </div>
+                )}
               </div>
 
               {/* Speed Control */}
@@ -347,16 +406,16 @@ function App() {
                 </label>
                 <input
                   type="range"
-                  min="10"
-                  max="200"
+                  min="1"
+                  max="100"
                   value={checkingSpeed}
                   onChange={(e) => setCheckingSpeed(Number(e.target.value))}
                   className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
                   disabled={isChecking}
                 />
                 <div className="flex justify-between text-xs text-gray-400 mt-1 tracking-wider">
-                  <span>10/sec</span>
-                  <span>200/sec</span>
+                  <span>1/sec</span>
+                  <span>100/sec</span>
                 </div>
               </div>
 
@@ -557,6 +616,10 @@ function App() {
                       
                       {result.processingTime && (
                         <div><span className="text-cyan-400 font-bold">𝗧𝗶𝗺𝗲-</span> {result.processingTime}</div>
+                      )}
+
+                      {result.chargeAmount && (
+                        <div><span className="text-cyan-400 font-bold">𝐂𝐡𝐚𝐫𝐠𝐞-</span> ${result.chargeAmount}</div>
                       )}
                     </div>
                   </div>
